@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointment Assistant — MBAN 5510</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        html, body {
+            height: 100%;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 12px 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%;
+        }
+        
+        header {
+            text-align: center;
+            padding: 14px 0;
+            flex-shrink: 0;
+        }
+        
+        header h1 {
+            font-size: 1.6rem;
+            color: #f8fafc;
+            margin-bottom: 2px;
+        }
+        
+        header p {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+        
+        .chat-area {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+            margin: 10px 0;
+            min-height: 0;
+        }
+        
+        .message {
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+        
+        .message-patient .message-label { color: #60a5fa; }
+        .message-system .message-label { color: #34d399; }
+        .message-draft .message-label { color: #fbbf24; }
+        .message-final .message-label { color: #a78bfa; }
+        .message-error .message-label { color: #f87171; }
+        
+        .message-content {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        
+        .message-draft .message-content {
+            border: 1px solid #fbbf24;
+            background: #1a1a2e;
+        }
+        
+        .message-final .message-content {
+            border: 1px solid #a78bfa;
+            background: #1a1a2e;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            vertical-align: middle;
+        }
+        
+        .status-READY { background: #065f46; color: #34d399; }
+        .status-NEED_INFO { background: #78350f; color: #fbbf24; }
+        .status-ESCALATE { background: #7f1d1d; color: #f87171; }
+        
+        .trace-info {
+            margin-top: 8px;
+            padding: 10px 14px;
+            background: #0f172a;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            color: #64748b;
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            line-height: 1.8;
+        }
+        
+        .trace-info span {
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .trace-info .trace-arrow {
+            color: #475569;
+        }
+        
+        .input-area {
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+            padding: 4px 0;
+        }
+        
+        .input-area input {
+            flex: 1;
+            padding: 14px 18px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: #f8fafc;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        .input-area input:focus {
+            border-color: #60a5fa;
+        }
+        
+        .input-area input::placeholder {
+            color: #475569;
+        }
+        
+        .btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover { background: #2563eb; }
+        .btn-primary:disabled { background: #1e3a5f; cursor: not-allowed; }
+        
+        .hitl-panel {
+            background: #1e293b;
+            border: 1px solid #fbbf24;
+            border-radius: 12px;
+            padding: 16px 20px;
+            flex-shrink: 0;
+            display: none;
+            margin-bottom: 10px;
+        }
+        
+        .hitl-panel h3 {
+            color: #fbbf24;
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+        }
+        
+        .hitl-panel > p {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+        
+        .hitl-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .btn-approve { background: #059669; color: white; }
+        .btn-approve:hover { background: #047857; }
+        
+        .btn-edit { background: #d97706; color: white; }
+        .btn-edit:hover { background: #b45309; }
+        
+        .btn-reject { background: #dc2626; color: white; }
+        .btn-reject:hover { background: #b91c1c; }
+        
+        .edit-area {
+            display: none;
+            margin-top: 12px;
+        }
+        
+        .edit-area textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #f8fafc;
+            font-size: 0.95rem;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+        }
+        
+        .edit-area textarea:focus { border-color: #60a5fa; }
+        
+        .btn-save-edit {
+            margin-top: 8px;
+            background: #059669;
+            color: white;
+        }
+        
+        .examples {
+            padding: 12px 16px;
+            background: #1e293b;
+            border-radius: 10px;
+            flex-shrink: 0;
+            margin-top: 8px;
+        }
+        
+        .examples h3 {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .example-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .example-chip {
+            padding: 6px 14px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .example-chip:hover {
+            border-color: #60a5fa;
+            color: #60a5fa;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #334155;
+            border-top-color: #60a5fa;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        footer {
+            text-align: center;
+            padding: 8px 0;
+            color: #475569;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏥 Appointment Assistant</h1>
+            <p>MBAN 5510 Final Project — LangGraph Middleware Orchestration</p>
+        </header>
+
+        <div class="chat-area" id="chatArea">
+            <div class="message message-system">
+                <div class="message-label">System</div>
+                <div class="message-content">Welcome! I can help you reschedule, cancel, or get preparation instructions for your appointments. Type your request below.</div>
+            </div>
+        </div>
+
+        <div class="hitl-panel" id="hitlPanel">
+            <h3>🔍 Human-in-the-Loop Review</h3>
+            <p>Review the draft response before it's sent to the patient.</p>
+            <div class="hitl-buttons">
+                <button class="btn btn-approve" onclick="finalizeResponse('approve')">✓ Approve</button>
+                <button class="btn btn-edit" onclick="showEditArea()">✎ Edit</button>
+                <button class="btn btn-reject" onclick="finalizeResponse('reject')">✗ Reject</button>
+            </div>
+            <div class="edit-area" id="editArea">
+                <textarea id="editText" placeholder="Edit the response..."></textarea>
+                <button class="btn btn-save-edit" onclick="finalizeResponse('edit')">Save & Send</button>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Type your request..." 
+                   onkeypress="if(event.key==='Enter') sendMessage()">
+            <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()">Send</button>
+        </div>
+
+        <div class="examples">
+            <h3>Try these examples</h3>
+            <div class="example-chips">
+                <div class="example-chip" onclick="useExample(this)">Reschedule APT-1001 to 2026-03-20 at 15:00</div>
+                <div class="example-chip" onclick="useExample(this)">Cancel appointment APT-1002</div>
+                <div class="example-chip" onclick="useExample(this)">What prep do I need for APT-1003?</div>
+                <div class="example-chip" onclick="useExample(this)">I'm having severe chest pain</div>
+                <div class="example-chip" onclick="useExample(this)">I want to cancel my appointment</div>
+            </div>
+        </div>
+
+        <footer>Built by Ron Etin · MBAN 5510 · Sobey School of Business</footer>
+    </div>
+
+    <script>
+        let currentResult = null;
+
+        function addMessage(type, label, content, extra = '') {
+            const chatArea = document.getElementById('chatArea');
+            const div = document.createElement('div');
+            div.className = `message message-${type}`;
+            div.innerHTML = `
+                <div class="message-label">${label}</div>
+                <div class="message-content">${content}</div>
+                ${extra}
+            `;
+            chatArea.appendChild(div);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function addTraceInfo(result) {
+            const chatArea = document.getElementById('chatArea');
+            const div = document.createElement('div');
+            div.className = 'message';
+            const traceFormatted = result.trace.replace(/→/g, '<span class="trace-arrow">→</span>');
+            div.innerHTML = `
+                <div class="trace-info">
+                    <span>Run:</span> ${result.run_id} &nbsp;&middot;&nbsp;
+                    <span>Status:</span> <span class="status-badge status-${result.status}">${result.status}</span> &nbsp;&middot;&nbsp;
+                    <span>Route:</span> ${result.route} &nbsp;&middot;&nbsp;
+                    <span>LLM Calls:</span> ${result.llm_calls}<br>
+                    <span>Trace:</span> ${traceFormatted}
+                </div>
+            `;
+            chatArea.appendChild(div);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            addMessage('patient', 'Patient', message);
+            input.value = '';
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<span class="loading"></span>';
+            
+            try {
+                const response = await fetch('/api/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message }),
+                });
+                
+                const result = await response.json();
+                currentResult = result;
+                
+                addMessage('draft', `Draft Response — ${result.status}`, result.draft_response);
+                addTraceInfo(result);
+                
+                document.getElementById('hitlPanel').style.display = 'block';
+                document.getElementById('editArea').style.display = 'none';
+                document.getElementById('editText').value = result.draft_response;
+                
+            } catch (error) {
+                addMessage('error', 'Error', 'Failed to process request: ' + error.message);
+            }
+            
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = 'Send';
+        }
+
+        function showEditArea() {
+            document.getElementById('editArea').style.display = 'block';
+        }
+
+        async function finalizeResponse(action) {
+            if (!currentResult) return;
+            
+            const editedText = document.getElementById('editText').value;
+            
+            try {
+                const response = await fetch('/api/finalize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: action,
+                        draft_response: currentResult.draft_response,
+                        edited_response: editedText,
+                        run_id: currentResult.run_id,
+                        status: currentResult.status,
+                        route: currentResult.route,
+                    }),
+                });
+                
+                const result = await response.json();
+                
+                const hitlLabel = action === 'approve' ? '✓ Approved' : 
+                                  action === 'edit' ? '✎ Edited' : '✗ Rejected';
+                addMessage('final', `Final Response (${hitlLabel})`, result.final_response);
+                
+                document.getElementById('hitlPanel').style.display = 'none';
+                currentResult = null;
+                
+            } catch (error) {
+                addMessage('error', 'Error', 'Failed to finalize: ' + error.message);
+            }
+        }
+
+        function useExample(el) {
+            document.getElementById('userInput').value = el.textContent;
+            document.getElementById('userInput').focus();
+        }
+    </script>
+</body>
+</html>
