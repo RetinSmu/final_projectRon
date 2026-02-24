@@ -1,0 +1,55 @@
+{
+  "appointments": [
+    {
+      "id": "APT-1001",
+      "patient_name": "Sarah Johnson",
+      "patient_id": "P-201",
+      "type": "MRI Scan",
+      "date": "2026-03-05",
+      "time": "10:00",
+      "doctor": "Dr. Patel",
+      "status": "confirmed",
+      "notes": ""
+    },
+    {
+      "id": "APT-1002",
+      "patient_name": "James Wilson",
+      "patient_id": "P-202",
+      "type": "Blood Work",
+      "date": "2026-03-07",
+      "time": "08:30",
+      "doctor": "Dr. Lee",
+      "status": "confirmed",
+      "notes": ""
+    },
+    {
+      "id": "APT-1003",
+      "patient_name": "Maria Garcia",
+      "patient_id": "P-203",
+      "type": "CT Scan",
+      "date": "2026-03-10",
+      "time": "14:00",
+      "doctor": "Dr. Thompson",
+      "status": "confirmed",
+      "notes": "Patient has contrast allergy"
+    },
+    {
+      "id": "APT-1004",
+      "patient_name": "Robert Chen",
+      "patient_id": "P-204",
+      "type": "X-Ray",
+      "date": "2026-03-03",
+      "time": "11:30",
+      "doctor": "Dr. Patel",
+      "status": "confirmed",
+      "notes": ""
+    }
+  ],
+  "preparation_instructions": {
+    "MRI Scan": "1. Do not eat or drink 4 hours before the scan. 2. Remove all metal objects including jewelry. 3. Wear comfortable, loose-fitting clothing. 4. Arrive 30 minutes early for check-in. 5. Inform staff if you have any implants or claustrophobia.",
+    "CT Scan": "1. Do not eat solid food 4 hours before the scan. 2. Drink plenty of water. 3. If contrast dye is required, inform staff of any allergies. 4. Arrive 30 minutes early. 5. Wear comfortable clothing without metal.",
+    "Blood Work": "1. Fast for 8-12 hours before the appointment (water is okay). 2. Continue taking medications unless told otherwise. 3. Wear a short-sleeved shirt. 4. Stay hydrated.",
+    "X-Ray": "1. Wear comfortable clothing without metal buttons or zippers. 2. Remove jewelry in the area being X-rayed. 3. Inform staff if you are or might be pregnant. 4. No special dietary preparation needed.",
+    "Ultrasound": "1. Drink 32 oz of water one hour before the exam (for abdominal ultrasound). 2. Do not empty your bladder. 3. Wear loose, comfortable clothing. 4. Follow any specific instructions from your doctor."
+  }
+}
