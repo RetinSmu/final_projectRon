@@ -5,10 +5,10 @@
       "patient_name": "Sarah Johnson",
       "patient_id": "P-201",
       "type": "MRI Scan",
-      "date": "2026-03-05",
-      "time": "10:00",
+      "date": "2026-03-20",
+      "time": "15:00",
       "doctor": "Dr. Patel",
-      "status": "confirmed",
+      "status": "rescheduled",
       "notes": ""
     },
     {
@@ -19,7 +19,7 @@
       "date": "2026-03-07",
       "time": "08:30",
       "doctor": "Dr. Lee",
-      "status": "confirmed",
+      "status": "cancelled",
       "notes": ""
     },
     {
