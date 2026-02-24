@@ -11,6 +11,13 @@ from src.tools import (
     get_preparation_instructions,
 )
 from src.state import AppointmentState
+from src.middleware import (
+    PIIMiddleware,
+    ModerationMiddleware,
+    ToolCallLimitMiddleware,
+    ModelRetryMiddleware,
+    LoggingMiddleware,
+)
 
 
 # Initialize the LLM
@@ -21,21 +28,53 @@ llm = ChatOpenAI(model=MODEL_NAME, api_key=OPENAI_API_KEY, temperature=0)
 # Node 1: Initialize the run
 # ──────────────────────────────────────────────
 def initialize_run(state: AppointmentState) -> dict:
-    """Set up run ID and timestamp for tracing."""
+    """Set up run ID, reset middleware, and begin tracing."""
     run_id = f"RUN-{uuid.uuid4().hex[:8].upper()}"
+
+    # Reset middleware state for new run
+    ToolCallLimitMiddleware.reset()
+    LoggingMiddleware.reset()
+    LoggingMiddleware.log_node("initialize_run")
+
     print(f"\n{'='*60}")
     print(f"  Run ID: {run_id}")
     print(f"  Time:   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  Input:  {state['user_input']}")
+    print(f"  Input:  {PIIMiddleware.mask_pii(state['user_input'])}")
     print(f"{'='*60}")
     return {"run_id": run_id}
 
 
 # ──────────────────────────────────────────────
-# Node 2: Classify the patient's intent
+# Node 2: Run middleware checks (PII + Moderation)
+# ──────────────────────────────────────────────
+def run_middleware_checks(state: AppointmentState) -> dict:
+    """Execute pre-processing middleware: PII scan and moderation."""
+    LoggingMiddleware.log_node("middleware_checks")
+
+    # PII Middleware
+    pii_result = PIIMiddleware.process(state)
+
+    # Moderation Middleware
+    mod_result = ModerationMiddleware.process(state)
+
+    # If moderation flagged the input, return escalation
+    if mod_result.get("status") == "ESCALATE":
+        return mod_result
+
+    return {**pii_result, **mod_result}
+
+
+# ──────────────────────────────────────────────
+# Node 3: Classify the patient's intent
 # ──────────────────────────────────────────────
 def classify_intent(state: AppointmentState) -> dict:
     """Use the LLM to classify the user's intent."""
+    LoggingMiddleware.log_node("classify_intent")
+
+    # Check if moderation already escalated
+    if state.get("status") == "ESCALATE":
+        return {}
+
     prompt = f"""You are a medical appointment assistant. Classify the following patient message 
 into exactly ONE of these categories:
 
@@ -60,8 +99,8 @@ patient_id: <id or NONE>
 new_date: <date or NONE>
 new_time: <time or NONE>"""
 
-    response = llm.invoke(prompt)
-    content = response.content.strip()
+    # Use ModelRetryMiddleware for resilient LLM calls
+    content = ModelRetryMiddleware.call_with_retry(llm, prompt)
 
     # Parse the response
     parsed = {}
@@ -89,10 +128,17 @@ new_time: <time or NONE>"""
 
 
 # ──────────────────────────────────────────────
-# Node 3: Safety check (emergency detection)
+# Node 4: Safety check (emergency detection)
 # ──────────────────────────────────────────────
 def safety_check(state: AppointmentState) -> dict:
     """Check for emergency/risk indicators and escalate if needed."""
+    LoggingMiddleware.log_node("safety_check")
+
+    # If already escalated by moderation middleware
+    if state.get("status") == "ESCALATE":
+        print("  [safety_check] ⚠ Already escalated by middleware")
+        return {}
+
     if state.get("intent") == "emergency":
         print("  [safety_check] ⚠ EMERGENCY DETECTED — escalating")
         return {
@@ -110,10 +156,11 @@ def safety_check(state: AppointmentState) -> dict:
 
 
 # ──────────────────────────────────────────────
-# Node 4: Validate that we have enough info
+# Node 5: Validate that we have enough info
 # ──────────────────────────────────────────────
 def validate_info(state: AppointmentState) -> dict:
     """Check if we have the required information to proceed."""
+    LoggingMiddleware.log_node("validate_info")
     intent = state.get("intent")
 
     if intent == "reschedule":
@@ -128,7 +175,6 @@ def validate_info(state: AppointmentState) -> dict:
                 "route_taken": "reschedule_need_info",
             }
         if not state.get("new_date") or not state.get("new_time"):
-            # We have the appointment but need the new date/time
             apt = lookup_appointment(
                 appointment_id=state.get("appointment_id"),
                 patient_id=state.get("patient_id"),
@@ -175,15 +221,15 @@ def validate_info(state: AppointmentState) -> dict:
 
 
 # ──────────────────────────────────────────────
-# Node 5: Execute the requested action
+# Node 6: Execute the requested action
 # ──────────────────────────────────────────────
 def execute_action(state: AppointmentState) -> dict:
     """Perform the actual appointment operation."""
+    LoggingMiddleware.log_node("execute_action")
     intent = state.get("intent")
     apt_id = state.get("appointment_id")
     patient_id = state.get("patient_id")
 
-    # Look up appointment if needed
     apt = lookup_appointment(appointment_id=apt_id, patient_id=patient_id)
     if not apt:
         print("  [execute_action] ✗ Appointment not found")
@@ -198,35 +244,28 @@ def execute_action(state: AppointmentState) -> dict:
     if intent == "reschedule":
         result = reschedule_appointment(apt["id"], state["new_date"], state["new_time"])
         print(f"  [execute_action] ✓ Rescheduled: {result}")
-        return {
-            "action_result": result,
-            "route_taken": "reschedule_success",
-        }
+        return {"action_result": result, "route_taken": "reschedule_success"}
 
     elif intent == "cancel":
         result = cancel_appointment(apt["id"])
         print(f"  [execute_action] ✓ Cancelled: {result}")
-        return {
-            "action_result": result,
-            "route_taken": "cancel_success",
-        }
+        return {"action_result": result, "route_taken": "cancel_success"}
 
     elif intent == "prep_info":
         instructions = get_preparation_instructions(apt["type"])
         print(f"  [execute_action] ✓ Retrieved prep instructions for {apt['type']}")
-        return {
-            "action_result": instructions,
-            "route_taken": "prep_info_success",
-        }
+        return {"action_result": instructions, "route_taken": "prep_info_success"}
 
     return {"action_result": "No action taken", "route_taken": "no_action"}
 
 
 # ──────────────────────────────────────────────
-# Node 6: Generate a draft response using the LLM
+# Node 7: Generate a draft response using the LLM
 # ──────────────────────────────────────────────
 def generate_draft_response(state: AppointmentState) -> dict:
     """Use the LLM to create a polished patient-facing response."""
+    LoggingMiddleware.log_node("generate_draft_response")
+
     prompt = f"""You are a friendly and professional medical appointment assistant.
 Generate a clear, helpful response for the patient based on this information:
 
@@ -240,20 +279,23 @@ Guidelines:
 - Do NOT provide any medical or clinical advice
 - If the action was successful, confirm what was done
 - Keep the response concise but complete
+- Do NOT include placeholder signatures like [Your Name] — end naturally
 
 Generate the response:"""
 
-    response = llm.invoke(prompt)
-    draft = response.content.strip()
+    # Use ModelRetryMiddleware for resilient LLM calls
+    draft = ModelRetryMiddleware.call_with_retry(llm, prompt)
     print(f"  [generate_draft] Draft response generated ({len(draft)} chars)")
     return {"draft_response": draft, "status": "READY"}
 
 
 # ──────────────────────────────────────────────
-# Node 7: Human-in-the-Loop review
+# Node 8: Human-in-the-Loop review
 # ──────────────────────────────────────────────
 def human_review(state: AppointmentState) -> dict:
     """Pause for human review of the draft response."""
+    LoggingMiddleware.log_node("human_review")
+
     print(f"\n{'─'*60}")
     print("  HUMAN-IN-THE-LOOP REVIEW")
     print(f"{'─'*60}")
@@ -296,21 +338,26 @@ def human_review(state: AppointmentState) -> dict:
 
 
 # ──────────────────────────────────────────────
-# Node 8: Finalize and output
+# Node 9: Finalize and output
 # ──────────────────────────────────────────────
 def finalize_output(state: AppointmentState) -> dict:
     """Produce the final output with tracing information."""
+    LoggingMiddleware.log_node("finalize_output")
+
     final = state.get("final_response", state.get("draft_response", "No response generated."))
     status = state.get("status", "READY")
     route = state.get("route_taken", "unknown")
+    trace = LoggingMiddleware.get_trace_summary()
 
     print(f"\n{'='*60}")
     print(f"  FINAL OUTPUT")
     print(f"{'='*60}")
-    print(f"  Run ID:   {state.get('run_id', 'N/A')}")
-    print(f"  Status:   {status}")
-    print(f"  Route:    {route}")
-    print(f"  HITL:     {state.get('hitl_action', 'N/A')}")
+    print(f"  Run ID:    {state.get('run_id', 'N/A')}")
+    print(f"  Status:    {status}")
+    print(f"  Route:     {route}")
+    print(f"  HITL:      {state.get('hitl_action', 'N/A')}")
+    print(f"  LLM Calls: {ToolCallLimitMiddleware.get_count()}")
+    print(f"  Trace:     {trace}")
     print(f"{'─'*60}")
     print(f"  Response to patient:\n")
     print(f"  {final}")

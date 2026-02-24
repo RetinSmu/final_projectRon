@@ -4,6 +4,7 @@ from langgraph.graph import StateGraph, END
 from src.state import AppointmentState
 from src.nodes import (
     initialize_run,
+    run_middleware_checks,
     classify_intent,
     safety_check,
     validate_info,
@@ -14,6 +15,13 @@ from src.nodes import (
 )
 
 
+def should_escalate_after_middleware(state: AppointmentState) -> str:
+    """Route after middleware checks: escalate if moderation flagged."""
+    if state.get("status") == "ESCALATE":
+        return "human_review"
+    return "classify_intent"
+
+
 def should_escalate(state: AppointmentState) -> str:
     """Route after safety check: escalate emergencies or continue."""
     if state.get("status") == "ESCALATE":
@@ -22,7 +30,7 @@ def should_escalate(state: AppointmentState) -> str:
 
 
 def has_enough_info(state: AppointmentState) -> str:
-    """Route after validation: proceed if we have info, otherwise finalize with NEED_INFO."""
+    """Route after validation: proceed if we have info, otherwise finalize."""
     if state.get("status") == "NEED_INFO":
         return "human_review"
     return "execute_action"
@@ -31,36 +39,50 @@ def has_enough_info(state: AppointmentState) -> str:
 def build_graph() -> StateGraph:
     """Build and compile the LangGraph workflow.
 
-    Workflow:
+    Workflow with Middleware:
+    
         initialize_run
               │
-        classify_intent
-              │
-        safety_check
+        run_middleware_checks (PII + Moderation)
               │
         ┌─────┴──────┐
-        │ ESCALATE   │ NORMAL
+        │ FLAGGED    │ CLEAN
         ▼            ▼
-    human_review  validate_info
-        │            │
-        │       ┌────┴─────┐
-        │       │NEED_INFO │ HAS_INFO
-        │       ▼          ▼
-        │  human_review  execute_action
-        │       │          │
-        │       │   generate_draft_response
-        │       │          │
-        │       │     human_review
-        │       │          │
-        ▼       ▼          ▼
-           finalize_output
-              │
-             END
+    human_review  classify_intent
+        │              │
+        │         safety_check
+        │              │
+        │         ┌────┴─────┐
+        │         │ESCALATE  │NORMAL
+        │         ▼          ▼
+        │    human_review  validate_info
+        │         │          │
+        │         │     ┌────┴─────┐
+        │         │   NEED_INFO  HAS_INFO
+        │         │     ▼          ▼
+        │         │  human_review  execute_action
+        │         │     │            │
+        │         │     │   generate_draft_response
+        │         │     │            │
+        │         │     │       human_review
+        │         │     │            │
+        ▼         ▼     ▼            ▼
+              finalize_output
+                    │
+                   END
+    
+    Middleware Components:
+        - PIIMiddleware: Scans and masks PII in logs
+        - ModerationMiddleware: Screens input for safety
+        - ToolCallLimitMiddleware: Limits LLM calls per run
+        - ModelRetryMiddleware: Retries failed LLM calls
+        - LoggingMiddleware: Tracks node execution trace
     """
     workflow = StateGraph(AppointmentState)
 
     # Add all nodes
     workflow.add_node("initialize_run", initialize_run)
+    workflow.add_node("run_middleware_checks", run_middleware_checks)
     workflow.add_node("classify_intent", classify_intent)
     workflow.add_node("safety_check", safety_check)
     workflow.add_node("validate_info", validate_info)
@@ -73,7 +95,18 @@ def build_graph() -> StateGraph:
     workflow.set_entry_point("initialize_run")
 
     # Define edges
-    workflow.add_edge("initialize_run", "classify_intent")
+    workflow.add_edge("initialize_run", "run_middleware_checks")
+
+    # Conditional: after middleware checks
+    workflow.add_conditional_edges(
+        "run_middleware_checks",
+        should_escalate_after_middleware,
+        {
+            "human_review": "human_review",
+            "classify_intent": "classify_intent",
+        },
+    )
+
     workflow.add_edge("classify_intent", "safety_check")
 
     # Conditional: after safety check
