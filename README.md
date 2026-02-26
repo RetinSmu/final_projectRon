@@ -7,6 +7,7 @@ An appointment-assistance system built with LangGraph that demonstrates middlewa
 **Course:** MBAN 5510 — Agentic AI  
 **Instructor:** Michael Zhang  
 
+**link to linkedin video:** https://www.linkedin.com/posts/ron-etin-77a298211_ai-langgraph-langchain-activity-7432875468506386432-dzs_?utm_source=share&utm_medium=member_desktop&rcm=ACoAADWc-04BW5E7_4CN5uygE5tvetOQ1guQbrI 
 ---
 
 ## Overview
@@ -63,9 +64,9 @@ cp .env.example .env
 
 ## Usage
 
-### CLI (Command Line Interface)
+### CLI (Command Line Interface(for running the UI))
 ```bash
-python3 -m src.main
+python3 -m src.web_app
 ```
 
 **Example commands you can type at the prompt:**

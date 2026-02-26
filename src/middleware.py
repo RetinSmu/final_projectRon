@@ -96,8 +96,8 @@ class ModerationMiddleware:
 
     # Keywords/patterns that trigger moderation
     FLAGGED_PATTERNS = [
-        r"\b(threat|threaten|kill|harm|attack|bomb)\b",
-        r"\b(abuse|harass)\b",
+        r"\b(threat|threaten|kill|harm|attack|bomb|threatened|kill|attacked)\b",
+        r"\b(abuse|harass|harassed)\b",
     ]
 
     PROFANITY_PATTERNS = [

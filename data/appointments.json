@@ -5,7 +5,7 @@
       "patient_name": "Sarah Johnson",
       "patient_id": "P-201",
       "type": "MRI Scan",
-      "date": "2026-03-20",
+      "date": "2026-04-15",
       "time": "15:00",
       "doctor": "Dr. Patel",
       "status": "rescheduled",
@@ -27,10 +27,10 @@
       "patient_name": "Maria Garcia",
       "patient_id": "P-203",
       "type": "CT Scan",
-      "date": "2026-03-10",
-      "time": "14:00",
+      "date": "2026-04-15",
+      "time": "09:30",
       "doctor": "Dr. Thompson",
-      "status": "confirmed",
+      "status": "rescheduled",
       "notes": "Patient has contrast allergy"
     },
     {
@@ -41,7 +41,7 @@
       "date": "2026-03-03",
       "time": "11:30",
       "doctor": "Dr. Patel",
-      "status": "confirmed",
+      "status": "cancelled",
       "notes": ""
     }
   ],
